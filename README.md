@@ -4,7 +4,7 @@
 
 ClassHub is a notice board for a college class. Notices, exam dates, project deadlines and study notes live in one place, instead of getting lost in WhatsApp groups. The class representative (CR) posts, and every student sees it instantly on their phone.
 
-**Live app:** https://YOUR-VERCEL-LINK
+**Live app:** https://classhub-blush.vercel.app
 
 ## Why I built it
 
