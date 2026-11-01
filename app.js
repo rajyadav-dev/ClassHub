@@ -503,19 +503,35 @@
   }
   function removeFile(path) { if (path) { try { sb.storage.from(BUCKET).remove([path]).then(function () {}, function () {}); } catch (e) {} } }
 
+  /* Files are downloaded with the member's own login and shown from a private
+     blob: address that only works inside this browser tab. There is no web link
+     to copy and forward. (If the download fails, a 60-second signed link is the fallback.) */
+  var blobUrl = null;
+  function freeBlob() { if (blobUrl) { try { URL.revokeObjectURL(blobUrl); } catch (e) {} blobUrl = null; } }
   async function openAttachment(path, kind, title) {
     try {
-      var r = await sb.storage.from(BUCKET).createSignedUrl(path, 3600);
-      if (r.error) throw r.error;
-      var url = r.data.signedUrl;
+      var url = null;
+      freeBlob();
+      try {
+        var d = await sb.storage.from(BUCKET).download(path);
+        if (!d.error && d.data) { blobUrl = URL.createObjectURL(d.data); url = blobUrl; }
+      } catch (e2) { url = null; }
+      if (!url) {
+        var r = await sb.storage.from(BUCKET).createSignedUrl(path, 60);
+        if (r.error) throw r.error;
+        url = r.data.signedUrl;
+      }
       var img = $('lbImg'), open = $('lbOpen');
       img.hidden = true; open.hidden = true;
       if (kind === 'image') { img.src = url; img.alt = title || 'Notice photo'; img.hidden = false; }
-      else { open.href = url; open.hidden = false; }
+      else {
+        open.href = url; open.hidden = false;
+        if (blobUrl) open.setAttribute('download', ((title || 'notice').replace(/[^\w\- ]+/g, '').trim() || 'notice') + '.pdf'); else open.removeAttribute('download');
+      }
       $('lightbox').hidden = false;
     } catch (e) { toast(friendly(e)); }
   }
-  $('lbClose').addEventListener('click', function () { $('lightbox').hidden = true; $('lbImg').removeAttribute('src'); });
+  $('lbClose').addEventListener('click', function () { $('lightbox').hidden = true; $('lbImg').removeAttribute('src'); setTimeout(freeBlob, 60000); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('lbClose').click(); });
 
   /* ---------- notices: compose ---------- */
