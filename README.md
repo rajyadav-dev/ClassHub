@@ -78,7 +78,7 @@ Phone (HTML + CSS + JS)  ──►  Supabase  ──►  Postgres + Row Level Se
 
 - Students sign up with a **class code**, their **roll number** (format checked) and a **6-digit PIN**. No personal email is collected.
 - Who can read or write what is enforced **inside the database** with Row Level Security, not in the app code. A student cannot post, and a CR cannot touch another class, even by calling the API directly.
-- Notice photos and PDFs sit in a **private** storage bucket and are opened through short-lived signed links.
+- Notice photos and PDFs sit in a **private** storage bucket. They are downloaded with the member's own login and shown from a private in-browser address, so there is **no web link** to copy and forward.
 - Roles are stored in the database and can only be changed by the admin.
 - Only the public (publishable) Supabase key is used in the app. No secret keys are in this repository.
 - Text from notices is always shown as plain text, so pasted HTML or scripts cannot run.
