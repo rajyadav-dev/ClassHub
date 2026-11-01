@@ -27,7 +27,7 @@
     user: null, profile: null, classes: [], view: null,
     notices: [], notes: [], people: [], counts: null,
     filter: 'all', tab: '', search: '',
-    att: null, noteFile: null, channel: null, lastSeen: 0, door: 'student', greeted: false
+    allowed: [], att: null, noteFile: null, channel: null, lastSeen: 0, door: 'student', greeted: false
   };
 
   /* ---------- small helpers ---------- */
@@ -47,6 +47,18 @@
     if (/profiles_roll_key|duplicate key/.test(m)) return 'This roll number is already registered. Please log in instead.';
     if (/not_found/.test(m)) return 'Person not found.';
     return m;
+  }
+  var SIGNUP_MSG = {
+    bad_code: 'Wrong class code. Ask your CR.',
+    bad_roll: 'The roll number must be 4 letters, 3 digits and 1 letter, like FDAI071A.',
+    closed: 'Sign ups are closed for this class. Ask your CR.',
+    not_allowed: 'This roll number is not on the class list. Check the number, or ask your CR.'
+  };
+  function joinMsg(e) {
+    var m = (e && e.message) || '';
+    if (/not_allowed/.test(m)) return SIGNUP_MSG.not_allowed;
+    if (/\bclosed\b/.test(m)) return SIGNUP_MSG.closed;
+    return friendly(e);
   }
   function pad2(n) { return n < 10 ? '0' + n : '' + n; }
   function dateOf(key) { var p = key.split('-'); return new Date(+p[0], +p[1] - 1, +p[2], 12); }
@@ -236,6 +248,9 @@
       var re = DEFAULT_ROLL;
       try { re = new RegExp(chk.data[0].roll_regex); } catch (e2) {}
       if (!re.test(roll)) { err.textContent = 'The roll number must be 4 letters, 3 digits and 1 letter, like FDAI071A.'; return; }
+      var cs = await sb.rpc('check_signup', { p_code: code, p_roll: roll });
+      if (cs.error) { if (!/could not find|does not exist|PGRST202|schema cache/i.test(cs.error.message || '')) { err.textContent = friendly(cs.error); return; } }
+      else if (cs.data !== 'ok') { err.textContent = SIGNUP_MSG[cs.data] || 'This roll number cannot sign up right now.'; return; }
       var su = await sb.auth.signUp({ email: rollToEmail(roll), password: pin });
       if (su.error) {
         err.textContent = /already registered|already been registered/i.test(su.error.message)
@@ -249,7 +264,7 @@
       }
       var j = await sb.rpc('join_class', { p_code: code, p_name: name, p_roll: roll });
       if (j.error) {
-        err.textContent = friendly(j.error);
+        err.textContent = joinMsg(j.error);
         await sb.auth.signOut();
         return;
       }
@@ -266,7 +281,7 @@
     if (!code || !name) { err.textContent = 'Enter the class code and your name.'; return; }
     err.textContent = '';
     var j = await sb.rpc('join_class', { p_code: code, p_name: name, p_roll: roll });
-    if (j.error) { err.textContent = friendly(j.error); return; }
+    if (j.error) { err.textContent = joinMsg(j.error); return; }
     await afterLogin(st.user);
   });
 
@@ -354,8 +369,11 @@
     var soon = dueSoon(), subjects = {};
     st.notes.forEach(function (n) { subjects[n.subject] = 1; });
     var box = $('homeStats'); box.textContent = '';
-    [[st.notices.length, 'Notices', ''], [soon.length, 'Due soon', soon.length ? 'warn' : ''], [st.notes.length, 'Notes', ''], [Object.keys(subjects).length, 'Subjects', '']].forEach(function (s) {
-      var t = el('div', 'stile' + (s[2] ? ' ' + s[2] : '')); t.appendChild(el('div', 'n', String(s[0]))); t.appendChild(el('div', 'l', s[1])); box.appendChild(t);
+    [[st.notices.length, 'Notices', '', '#notices'], [soon.length, 'Due soon', soon.length ? 'warn' : '', '#home'], [st.notes.length, 'Notes', '', '#notes'], [Object.keys(subjects).length, 'Subjects', '', '#notes']].forEach(function (s) {
+      var t = el('a', 'stile' + (s[2] ? ' ' + s[2] : '')); t.href = s[3];
+      t.appendChild(el('div', 'n', String(s[0]))); t.appendChild(el('div', 'l', s[1]));
+      if (s[3] === '#home') t.addEventListener('click', function (ev) { ev.preventDefault(); var w = $('dueWrap'); if (w && w.scrollIntoView) w.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      box.appendChild(t);
     });
     var bb = $('bellBadge'); bb.textContent = String(soon.length); bb.hidden = !soon.length;
     var dl = $('dueList'); dl.textContent = '';
@@ -366,12 +384,6 @@
     var latest = st.notices.slice().sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; }).slice(0, 3);
     if (!latest.length) ll.appendChild(el('p', 'empty', 'No notices yet.'));
     latest.forEach(function (n) { ll.appendChild(drow(n, '', false)); });
-    var q = $('quick'); q.textContent = '';
-    var items = [['#notices', 'i-notice', 'Notices'], ['#notes', 'i-book', 'Notes'], canWrite() ? ['#people', 'i-users', 'Students'] : ['#profile', 'i-user', 'Profile']];
-    items.forEach(function (it) {
-      var a = el('a', 'qbtn'); a.href = it[0];
-      var qi = el('span', 'qi'); qi.appendChild(icon(it[1])); a.appendChild(qi); a.appendChild(document.createTextNode(it[2])); q.appendChild(a);
-    });
   }
   $('bell').addEventListener('click', function () {
     location.hash = '#home';
@@ -571,13 +583,14 @@
     t.appendChild(el('div', 'w', diff === 0 ? 'Today' : diff === 1 ? 'Tmrw' : WD[d.getDay()]));
     return t;
   }
-  function delBtn(label, onConfirm) {
-    var b = el('button', 'del', '×'); b.type = 'button'; b.setAttribute('aria-label', label);
+  function delBtn(label, onConfirm, text) {
+    var base = text || '×';
+    var b = el('button', 'del', base); b.type = 'button'; b.setAttribute('aria-label', label);
     var armed = false, t = null;
     b.addEventListener('click', function () {
       if (!armed) {
         armed = true; b.textContent = 'Sure?'; b.className = 'del armed';
-        t = setTimeout(function () { armed = false; b.textContent = '×'; b.className = 'del'; }, 3000);
+        t = setTimeout(function () { armed = false; b.textContent = base; b.className = 'del'; }, 3000);
         return;
       }
       clearTimeout(t); onConfirm();
@@ -727,6 +740,8 @@
         var n = await sb.from('notices').select('class_id').limit(5000);
         var m = await sb.from('notes').select('class_id').limit(5000);
         st.counts = { notices: n.data || [], notes: m.data || [] };
+        var ar = await sb.from('allowed_rolls').select('roll').eq('class_id', st.view).limit(2000);
+        st.allowed = ar.error ? [] : (ar.data || []);
       }
       renderPeople();
     } catch (e) { toast(friendly(e)); }
@@ -734,6 +749,7 @@
   function countBy(rows, cid) { var c = 0; for (var i = 0; i < rows.length; i++) if (rows[i].class_id === cid) c++; return c; }
 
   function renderPeople() {
+    renderRollCard();
     var stats = $('stats'); stats.textContent = '';
     function stat(n, l) { var d = el('div', 'stat'); d.appendChild(el('div', 'n', String(n))); d.appendChild(el('div', 'l', l)); stats.appendChild(d); }
     var scope = isAdmin() ? st.people : st.people.filter(function (x) { return x.class_id === st.profile.class_id; });
@@ -799,6 +815,70 @@
       box.appendChild(row);
     });
   }
+  /* ---------- admin: who can sign up (roll list and sign up switch) ---------- */
+  function rollRegex() { var c = classById(st.view); try { return new RegExp(c.roll_regex); } catch (e) { return DEFAULT_ROLL; } }
+  function renderRollCard() {
+    var card = $('rollCard'); card.hidden = !isAdmin();
+    if (!isAdmin()) return;
+    var c = classById(st.view); if (!c) { card.hidden = true; return; }
+    var rolls = st.allowed.map(function (r) { return r.roll; });
+    var joined = {}; st.people.forEach(function (p) { joined[p.roll] = 1; });
+    var notJoined = rolls.filter(function (r) { return !joined[r]; }).sort();
+    var open = c.signups_open !== false, on = !!c.restrict_rolls;
+    $('rcOpen').checked = open; $('rcRestrict').checked = on;
+    $('rcSummary').textContent = c.name + ': ' + rolls.length + ' roll numbers on the list, ' + (rolls.length - notJoined.length) + ' joined. Sign ups are ' + (open ? 'open' : 'closed') + '. List check is ' + (on ? 'ON' : 'OFF') + '.';
+    $('rcNjSum').textContent = 'Not joined yet (' + notJoined.length + ')';
+    $('rcNj').textContent = notJoined.length ? notJoined.join(', ') : (rolls.length ? 'Everyone on the list has joined.' : 'The list is empty.');
+    var row = $('rcClearRow'); row.textContent = '';
+    if (rolls.length) row.appendChild(delBtn('Clear the roll list', async function () {
+      var r = await sb.from('allowed_rolls').delete().eq('class_id', st.view);
+      if (r.error) { $('rcErr').textContent = friendly(r.error); return; }
+      if (c.restrict_rolls) await setClass({ restrict_rolls: false });
+      toast('Roll list cleared'); loadPeople();
+    }, 'Clear the list'));
+  }
+  async function setClass(patch) {
+    var r = await sb.from('classes').update(patch).eq('id', st.view);
+    if (r.error) { $('rcErr').textContent = friendly(r.error); }
+    var c = await sb.from('classes').select('*').order('name');
+    if (!c.error) st.classes = c.data || [];
+    renderRollCard();
+  }
+  $('rcOpen').addEventListener('change', function () { $('rcErr').textContent = ''; setClass({ signups_open: $('rcOpen').checked }); });
+  $('rcRestrict').addEventListener('change', function () {
+    $('rcErr').textContent = '';
+    if ($('rcRestrict').checked && !st.allowed.length) { $('rcRestrict').checked = false; $('rcErr').textContent = 'Add roll numbers first. With an empty list nobody could sign up.'; return; }
+    setClass({ restrict_rolls: $('rcRestrict').checked });
+  });
+  async function addRolls(list) {
+    var err = $('rcErr'); err.textContent = '';
+    var re = rollRegex(), have = {}, seen = {}, ok = [], bad = [];
+    st.allowed.forEach(function (r) { have[r.roll] = 1; });
+    list.forEach(function (x) {
+      x = cleanRoll(x); if (!x || seen[x]) return; seen[x] = 1;
+      if (!re.test(x)) bad.push(x); else if (!have[x]) ok.push(x);
+    });
+    if (!ok.length) { err.textContent = bad.length ? 'These do not match the roll number format: ' + bad.slice(0, 5).join(', ') : 'Nothing new to add. These are already on the list.'; return; }
+    for (var i = 0; i < ok.length; i += 200) {
+      var rows = ok.slice(i, i + 200).map(function (x) { return { class_id: st.view, roll: x }; });
+      var r = await sb.from('allowed_rolls').insert(rows);
+      if (r.error) { err.textContent = friendly(r.error); await loadPeople(); return; }
+    }
+    toast(ok.length + ' roll numbers added' + (bad.length ? ' (' + bad.length + ' skipped)' : ''));
+    await loadPeople();
+  }
+  $('rlGen').addEventListener('click', function () {
+    var pre = cleanRoll($('rlPre').value), suf = cleanRoll($('rlSuf').value), a = parseInt($('rlFrom').value, 10), b = parseInt($('rlTo').value, 10), err = $('rcErr');
+    if (!pre || isNaN(a) || isNaN(b) || a < 0 || b < a) { err.textContent = 'Fill the start letters, the ending letter and the From and To numbers.'; return; }
+    if (b - a > 500) { err.textContent = 'A range can have at most 500 roll numbers.'; return; }
+    var list = []; for (var n = a; n <= b; n++) list.push(pre + String(n).padStart(3, '0') + suf);
+    addRolls(list);
+  });
+  $('rlAdd').addEventListener('click', function () {
+    var list = $('rlPaste').value.split(/[\s,;]+/);
+    addRolls(list).then(function () { if (!$('rcErr').textContent) $('rlPaste').value = ''; });
+  });
+
   $('pSearch').addEventListener('input', function () { st.search = $('pSearch').value.trim(); renderPeople(); });
 
   $('classForm').addEventListener('submit', async function (ev) {

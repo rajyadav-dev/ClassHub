@@ -193,11 +193,12 @@ textarea { min-height: 110px; resize: vertical; }
 .hero .cl { font-size: 12.5px; opacity: .85; margin-top: 2px; }
 .avatar { flex: none; width: 54px; height: 54px; border-radius: 50%; background: rgba(255, 255, 255, .2); border: 2px solid rgba(255, 255, 255, .55); display: grid; place-items: center; font-weight: 700; font-size: 19px; color: #fff; position: relative; z-index: 1; }
 .avatar.big { width: 84px; height: 84px; font-size: 30px; background: linear-gradient(135deg, #2563EB, #0EA5E9); border-color: var(--surface); box-shadow: 0 8px 24px -6px rgba(37, 99, 235, .6); }
-.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.stile { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px 4px; text-align: center; box-shadow: var(--shadow); }
+.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stile { display: block; color: inherit; text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 10px 4px; text-align: center; box-shadow: var(--shadow); }
 .stile .n { font-size: 21px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stile .l { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .stile.warn .n { color: #EF4444; }
+.stile:active { transform: scale(.97); }
 .sech { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .sech a { font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; }
 .due { display: flex; flex-direction: column; gap: 8px; }
@@ -493,10 +494,6 @@ details.adv summary { cursor: pointer; color: var(--accent); font-weight: 600; f
         <div class="sech"><h2>Latest notices</h2><a href="#notices">View all</a></div>
         <div class="due" id="latestList"></div>
       </div>
-      <div class="stack">
-        <h2>Quick access</h2>
-        <div class="quick" id="quick"></div>
-      </div>
     </div>
 
     <!-- NOTICES -->
@@ -614,6 +611,34 @@ details.adv summary { cursor: pointer; color: var(--accent); font-weight: 600; f
       </form>
 
       <div class="stack" id="classCards"></div>
+
+      <div class="card" id="rollCard" hidden>
+        <h2>Who can sign up</h2>
+        <p class="sub" id="rcSummary"></p>
+        <label class="check"><input type="checkbox" id="rcOpen"><span>Sign ups are open for this class</span></label>
+        <label class="check"><input type="checkbox" id="rcRestrict"><span>Only roll numbers on the class list can sign up</span></label>
+        <details class="adv">
+          <summary>Add roll numbers to the list</summary>
+          <div class="stack" style="margin-top:10px">
+            <p class="sub">Add a range, for example FDAI001A to FDAI073A:</p>
+            <div class="grid2">
+              <div class="field"><label for="rlPre">Starts with</label><input type="text" id="rlPre" maxlength="4" placeholder="FDAI" autocapitalize="characters" spellcheck="false"></div>
+              <div class="field"><label for="rlSuf">Ends with</label><input type="text" id="rlSuf" maxlength="1" placeholder="A" autocapitalize="characters" spellcheck="false"></div>
+              <div class="field"><label for="rlFrom">From number</label><input type="text" id="rlFrom" inputmode="numeric" maxlength="3" placeholder="1"></div>
+              <div class="field"><label for="rlTo">To number</label><input type="text" id="rlTo" inputmode="numeric" maxlength="3" placeholder="73"></div>
+            </div>
+            <button type="button" class="secondary" id="rlGen">Add this range</button>
+            <div class="field">
+              <label for="rlPaste">Or paste roll numbers (spaces, commas or new lines)</label>
+              <textarea id="rlPaste" spellcheck="false"></textarea>
+            </div>
+            <button type="button" class="secondary" id="rlAdd">Add pasted roll numbers</button>
+          </div>
+        </details>
+        <details class="adv"><summary id="rcNjSum">Not joined yet</summary><p class="sub" id="rcNj" style="margin-top:8px;overflow-wrap:anywhere"></p></details>
+        <div class="btnrow" id="rcClearRow"></div>
+        <p class="err" id="rcErr" role="alert"></p>
+      </div>
 
       <div class="field">
         <label for="pSearch">Search students</label>
