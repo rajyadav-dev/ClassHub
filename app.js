@@ -324,16 +324,17 @@
   });
 
   /* ---------- theme ---------- */
-  function applyTheme(t) {
+  /* Two themes only. Until the person picks one, start from what their phone is set to (not saved). */
+  function applyTheme(t, save) {
     var r = document.documentElement;
-    if (t === 'light' || t === 'dark') r.setAttribute('data-theme', t); else { t = 'auto'; r.removeAttribute('data-theme'); }
-    [['thAuto', 'auto'], ['thLight', 'light'], ['thDark', 'dark']].forEach(function (p) { $(p[0]).setAttribute('aria-pressed', t === p[1] ? 'true' : 'false'); });
-    lsSet('classHub.theme', t);
+    if (t !== 'light' && t !== 'dark') t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    r.setAttribute('data-theme', t);
+    [['thLight', 'light'], ['thDark', 'dark']].forEach(function (p) { $(p[0]).setAttribute('aria-pressed', t === p[1] ? 'true' : 'false'); });
+    if (save) lsSet('classHub.theme', t);
   }
-  $('thAuto').addEventListener('click', function () { applyTheme('auto'); });
-  $('thLight').addEventListener('click', function () { applyTheme('light'); });
-  $('thDark').addEventListener('click', function () { applyTheme('dark'); });
-  applyTheme(lsGet('classHub.theme') || 'auto');
+  $('thLight').addEventListener('click', function () { applyTheme('light', true); });
+  $('thDark').addEventListener('click', function () { applyTheme('dark', true); });
+  applyTheme(lsGet('classHub.theme'), false);
 
   /* ---------- home: greeting, numbers, what is coming up ---------- */
   function initial(name) { return (String(name || '?').trim().charAt(0) || '?').toUpperCase(); }
@@ -511,6 +512,7 @@
   async function openAttachment(path, kind, title) {
     try {
       var url = null;
+      if (kind !== 'image') toast('Getting the PDF...');
       freeBlob();
       try {
         var d = await sb.storage.from(BUCKET).download(path);
@@ -521,14 +523,20 @@
         if (r.error) throw r.error;
         url = r.data.signedUrl;
       }
-      var img = $('lbImg'), open = $('lbOpen');
-      img.hidden = true; open.hidden = true;
-      if (kind === 'image') { img.src = url; img.alt = title || 'Notice photo'; img.hidden = false; }
-      else {
-        open.href = url; open.hidden = false;
-        if (blobUrl) open.setAttribute('download', ((title || 'notice').replace(/[^\w\- ]+/g, '').trim() || 'notice') + '.pdf'); else open.removeAttribute('download');
+      if (kind === 'image') {
+        var img = $('lbImg'), open = $('lbOpen');
+        open.hidden = true; img.src = url; img.alt = title || 'Notice photo'; img.hidden = false;
+        $('lightbox').hidden = false;
+      } else {
+        /* PDF: save straight to the phone, no extra screen */
+        var a = document.createElement('a');
+        a.href = url; a.rel = 'noopener';
+        if (blobUrl) a.download = ((title || 'notice').replace(/[^\w\- ]+/g, '').trim() || 'notice') + '.pdf'; else a.target = '_blank';
+        a.style.display = 'none'; document.body.appendChild(a); a.click();
+        setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 1000);
+        toast('Downloading PDF...');
+        setTimeout(freeBlob, 60000);
       }
-      $('lightbox').hidden = false;
     } catch (e) { toast(friendly(e)); }
   }
   $('lbClose').addEventListener('click', function () { $('lightbox').hidden = true; $('lbImg').removeAttribute('src'); setTimeout(freeBlob, 60000); });
