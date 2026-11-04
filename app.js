@@ -512,7 +512,6 @@
   async function openAttachment(path, kind, title) {
     try {
       var url = null;
-      if (kind !== 'image') toast('Getting the PDF...');
       freeBlob();
       try {
         var d = await sb.storage.from(BUCKET).download(path);
@@ -523,20 +522,14 @@
         if (r.error) throw r.error;
         url = r.data.signedUrl;
       }
-      if (kind === 'image') {
-        var img = $('lbImg'), open = $('lbOpen');
-        open.hidden = true; img.src = url; img.alt = title || 'Notice photo'; img.hidden = false;
-        $('lightbox').hidden = false;
-      } else {
-        /* PDF: save straight to the phone, no extra screen */
-        var a = document.createElement('a');
-        a.href = url; a.rel = 'noopener';
-        if (blobUrl) a.download = ((title || 'notice').replace(/[^\w\- ]+/g, '').trim() || 'notice') + '.pdf'; else a.target = '_blank';
-        a.style.display = 'none'; document.body.appendChild(a); a.click();
-        setTimeout(function () { if (a.parentNode) a.parentNode.removeChild(a); }, 1000);
-        toast('Downloading PDF...');
-        setTimeout(freeBlob, 60000);
+      var img = $('lbImg'), open = $('lbOpen');
+      img.hidden = true; open.hidden = true;
+      if (kind === 'image') { img.src = url; img.alt = title || 'Notice photo'; img.hidden = false; }
+      else {
+        open.href = url; open.hidden = false;
+        if (blobUrl) open.setAttribute('download', ((title || 'notice').replace(/[^\w\- ]+/g, '').trim() || 'notice') + '.pdf'); else open.removeAttribute('download');
       }
+      $('lightbox').hidden = false;
     } catch (e) { toast(friendly(e)); }
   }
   $('lbClose').addEventListener('click', function () { $('lightbox').hidden = true; $('lbImg').removeAttribute('src'); setTimeout(freeBlob, 60000); });
