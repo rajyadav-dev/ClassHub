@@ -193,6 +193,36 @@
     refresh();
     subscribe();
     touchSeen(true);
+    takeShared();
+  }
+
+  /* ---------- share from WhatsApp (Android "Share" -> ClassHub) ----------
+     sw.js keeps the shared text/file in a private cache; here we move it into the New notice form. */
+  async function takeShared() {
+    if (!('caches' in window)) return;
+    try {
+      var cache = await caches.open('classhub-share');
+      var t = await cache.match('text'), f = await cache.match('file');
+      if (!t && !f) return;
+      var text = t ? await t.text() : '', blob = null, name = '';
+      if (f) { blob = await f.blob(); name = decodeURIComponent(f.headers.get('X-Name') || ''); }
+      var keys = await cache.keys();
+      await Promise.all(keys.map(function (k) { return cache.delete(k); }));
+      try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+      if (!canWrite()) { toast('Only a CR or admin can post notices.'); return; }
+      location.hash = '#notices'; route();
+      $('composeBox').open = true;
+      if (text.trim()) { $('pasteBox').value = text.trim().slice(0, 4000); $('parseBtn').click(); }
+      if (blob) {
+        var isPdf = blob.type === 'application/pdf' || /\.pdf$/i.test(name);
+        var file = new File([blob], name || (isPdf ? 'notice.pdf' : 'photo.jpg'), { type: blob.type || (isPdf ? 'application/pdf' : 'image/jpeg') });
+        await pickAtt(file, isPdf ? 'pdf' : 'image');
+      }
+      toast('Shared message is ready. Check it and tap Post.');
+    } catch (e) { /* ignore: the app still works normally */ }
+  }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
   }
 
   /* ---------- login / sign up ---------- */

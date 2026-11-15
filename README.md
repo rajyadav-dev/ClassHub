@@ -39,6 +39,7 @@ In my class the CR shares every notice, date and note by hand on WhatsApp. Messa
 | **Six notice types** | Exam, Project, Syllabus, Holiday, Event and Announcement, each with its own colour. |
 | **Photo and PDF notices** | The CR can take a photo, pick one from the gallery or attach a PDF. Photos are shrunk on the phone before upload. |
 | **Paste-to-fill** | Paste a WhatsApp message and the app suggests the title, type, date and time. It understands "tomorrow", "kal", weekdays and dates like 5 Nov. |
+| **Share from WhatsApp** | On Android, tap Share on a WhatsApp message or PDF and pick ClassHub. The New notice form opens already filled. Works once the app is installed on the home screen, for CRs and admins only. |
 | **Coming up** | The home screen shows what is due in the next 3 days, with a bell badge and a "due tomorrow" reminder. |
 | **Notes library** | Subject-wise notes as a Google Drive link or a PDF. |
 | **Admin panel** | Class stats, students with last-active time, make or remove a CR, remove an account, create classes, and post college-wide notices. |
@@ -80,6 +81,7 @@ Phone (HTML + CSS + JS)  ──►  Supabase  ──►  Postgres + Row Level Se
 - Who can read or write what is enforced **inside the database** with Row Level Security, not in the app code. A student cannot post, and a CR cannot touch another class, even by calling the API directly.
 - Notice photos and PDFs sit in a **private** storage bucket. They are downloaded with the member's own login and shown from a private in-browser address, so there is **no web link** to copy and forward.
 - Roles are stored in the database and can only be changed by the admin.
+- Helper functions are only callable by logged-in members; only the class-code and sign-up checks are public.
 - Only the public (publishable) Supabase key is used in the app. No secret keys are in this repository.
 - Text from notices is always shown as plain text, so pasted HTML or scripts cannot run.
 
@@ -92,7 +94,8 @@ Phone (HTML + CSS + JS)  ──►  Supabase  ──►  Postgres + Row Level Se
 | `parser.js` | Reads pasted messages and finds title, type, date and time |
 | `config.js` | Supabase project URL and public key |
 | `schema.sql` | Tables, security rules, storage bucket and helper functions |
-| `manifest.webmanifest`, `icon-*.png`, `icon.svg` | Install-on-phone support and icons |
+| `manifest.webmanifest`, `icon-*.png`, `icon.svg` | Install-on-phone support, share target and icons |
+| `sw.js` | Tiny service worker that receives text and files shared from other apps. It caches nothing else. |
 
 ## Run your own copy
 
