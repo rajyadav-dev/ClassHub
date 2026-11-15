@@ -250,6 +250,86 @@ begin
 end
 $$;
 
+-- 7. Roll number list and sign up switch (added later) -----------------------
+
+alter table public.classes add column if not exists signups_open  boolean not null default true;
+alter table public.classes add column if not exists restrict_rolls boolean not null default false;
+
+create table if not exists public.allowed_rolls (
+  class_id uuid not null references public.classes(id) on delete cascade,
+  roll     text not null check (roll = upper(roll) and char_length(roll) between 4 and 20),
+  primary key (class_id, roll)
+);
+alter table public.allowed_rolls enable row level security;
+revoke all on public.allowed_rolls from anon;
+revoke all on public.allowed_rolls from authenticated;
+grant select, insert, delete on public.allowed_rolls to authenticated;
+drop policy if exists allowed_rolls_admin on public.allowed_rolls;
+create policy allowed_rolls_admin on public.allowed_rolls for all to authenticated
+  using (public.my_role() = 'admin') with check (public.my_role() = 'admin');
+
+-- Before sign up, the app asks: may this roll number join this class? Answers: ok, bad_code, bad_roll, closed, not_allowed.
+create or replace function public.check_signup(p_code text, p_roll text)
+returns text
+language plpgsql stable security definer set search_path = public as $$
+declare
+  c public.classes;
+  r text := upper(regexp_replace(coalesce(p_roll, ''), '\s', '', 'g'));
+begin
+  select * into c from public.classes where code = upper(trim(coalesce(p_code, '')));
+  if c.id is null then return 'bad_code'; end if;
+  if r !~ c.roll_regex then return 'bad_roll'; end if;
+  if not c.signups_open then return 'closed'; end if;
+  if c.restrict_rolls and not exists (select 1 from public.allowed_rolls a where a.class_id = c.id and a.roll = r) then return 'not_allowed'; end if;
+  return 'ok';
+end
+$$;
+revoke all on function public.check_signup(text, text) from public;
+grant execute on function public.check_signup(text, text) to anon, authenticated;
+
+-- join_class now enforces the same rules, so nobody can skip the app and call it directly.
+create or replace function public.join_class(p_code text, p_name text, p_roll text)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  c public.classes;
+  r text := upper(regexp_replace(coalesce(p_roll, ''), '\s', '', 'g'));
+begin
+  if auth.uid() is null then raise exception 'not_signed_in'; end if;
+  if exists (select 1 from public.profiles where id = auth.uid()) then raise exception 'already_joined'; end if;
+  select * into c from public.classes where code = upper(trim(coalesce(p_code, '')));
+  if c.id is null then raise exception 'bad_code'; end if;
+  if r !~ c.roll_regex then raise exception 'bad_roll'; end if;
+  if char_length(trim(coalesce(p_name, ''))) = 0 then raise exception 'bad_name'; end if;
+  if not c.signups_open then raise exception 'closed'; end if;
+  if c.restrict_rolls and not exists (select 1 from public.allowed_rolls a where a.class_id = c.id and a.roll = r) then raise exception 'not_allowed'; end if;
+  insert into public.profiles (id, class_id, name, roll)
+  values (auth.uid(), c.id, left(trim(p_name), 60), r);
+end
+$$;
+revoke all on function public.join_class(text, text, text) from public;
+grant execute on function public.join_class(text, text, text) to authenticated;
+
+-- =====================================================================
+-- Hardening: only logged-in users may call these functions.
+-- check_class_code and check_signup stay open to everyone because the
+-- sign-up screen needs them before anyone is logged in.
+-- =====================================================================
+revoke execute on function public.my_class()                    from public, anon;
+revoke execute on function public.my_role()                     from public, anon;
+revoke execute on function public.can_write_class(uuid)         from public, anon;
+revoke execute on function public.join_class(text, text, text)  from public, anon;
+revoke execute on function public.set_role(text, text)          from public, anon;
+revoke execute on function public.touch_seen()                  from public, anon;
+revoke execute on function public.remove_user(text)             from public, anon;
+grant execute on function public.my_class()                    to authenticated;
+grant execute on function public.my_role()                     to authenticated;
+grant execute on function public.can_write_class(uuid)         to authenticated;
+grant execute on function public.join_class(text, text, text)  to authenticated;
+grant execute on function public.set_role(text, text)          to authenticated;
+grant execute on function public.touch_seen()                  to authenticated;
+grant execute on function public.remove_user(text)             to authenticated;
+
 -- =====================================================================
 -- AFTER the setup above works, do these two steps (see SETUP.md):
 --
