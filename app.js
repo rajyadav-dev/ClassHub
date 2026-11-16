@@ -212,6 +212,10 @@
       if (!canWrite()) { toast('Only a CR or admin can post notices.'); return; }
       location.hash = '#notices'; route();
       $('composeBox').open = true;
+      /* WhatsApp adds "Document from <sender>" / "Photo from <sender>" and the file name; drop that noise */
+      text = text.split('\n').map(function (l) { return l.trim(); }).filter(function (l) {
+        return l && !/^(document|photo|image|video|file)\s+from\s+/i.test(l);
+      }).map(function (l) { return (name && l === name) ? l.replace(/\.(pdf|jpe?g|png|webp)$/i, '') : l; }).join('\n');
       if (text.trim()) { $('pasteBox').value = text.trim().slice(0, 4000); $('parseBtn').click(); }
       if (blob) {
         var isPdf = blob.type === 'application/pdf' || /\.pdf$/i.test(name);
