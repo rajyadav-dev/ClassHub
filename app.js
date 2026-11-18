@@ -584,10 +584,36 @@
     box.textContent = bits.join(' · ') + '. Please check before posting.'; box.hidden = false;
   });
   function clearComposer() {
+    st.edit = null;
     $('composer').reset(); $('nCat').value = 'announcement'; clearAtt();
     $('understood').hidden = true; $('nErr').textContent = '';
+    $('nBtn').textContent = 'Post notice'; $('nClear').textContent = 'Clear';
   }
   $('nClear').addEventListener('click', clearComposer);
+
+  /* ---------- notices: edit ---------- */
+  /* Edit mode: the New notice form is filled with the old notice and saving
+     updates that same notice instead of creating a new one. */
+  $('attRemove').addEventListener('click', function () { if (st.edit) st.edit.dropAtt = true; });
+  function startEdit(n) {
+    clearComposer();
+    st.edit = { n: n, dropAtt: false };
+    $('pasteBox').value = n.body || '';
+    $('nTitle').value = n.title || '';
+    $('nCat').value = catOf(n);
+    $('nDate').value = n.notice_date || '';
+    $('nTime').value = n.notice_time ? n.notice_time.slice(0, 5) : '';
+    $('nUnconf').checked = !!n.unconfirmed;
+    if (n.attachment_path) {
+      show('attBox', true); show('attPrev', false); show('attPdf', n.attachment_kind === 'pdf');
+      $('attName').textContent = 'Current ' + (n.attachment_kind === 'pdf' ? 'PDF' : 'photo') + ' (kept). Pick a new one to replace it.';
+    }
+    var u = $('understood');
+    u.textContent = 'Editing this notice. Change what you need, then tap Save changes.'; u.hidden = false;
+    $('nBtn').textContent = 'Save changes'; $('nClear').textContent = 'Cancel edit';
+    var box = $('composeBox'); box.open = true;
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   $('composer').addEventListener('submit', async function (ev) {
     ev.preventDefault();
@@ -596,6 +622,32 @@
     if (!title) {
       if (body) { title = pickTitle(body); $('nTitle').value = title; }
       if (!title) { err.textContent = 'Add a title (or paste the message and tap the fill button).'; $('nTitle').focus(); return; }
+    }
+    var editing = st.edit;
+    if (editing) {
+      err.textContent = ''; setBusy($('nBtn'), true, 'Saving...');
+      var newPath = null, oldPath = editing.n.attachment_path;
+      try {
+        var upd = {
+          title: title.slice(0, 120), body: body.slice(0, 4000), cat: $('nCat').value,
+          notice_date: $('nDate').value || null, notice_time: $('nTime').value || null,
+          unconfirmed: $('nUnconf').checked
+        };
+        if (st.att) {
+          newPath = await upload(editing.n.class_id || 'college', st.att.blob, st.att.ext, st.att.type);
+          upd.attachment_path = newPath; upd.attachment_kind = st.att.kind;
+        } else if (editing.dropAtt) { upd.attachment_path = null; upd.attachment_kind = null; }
+        var ur = await sb.from('notices').update(upd).eq('id', editing.n.id).select('id');
+        if (ur.error) { removeFile(newPath); throw ur.error; }
+        if (!ur.data || !ur.data.length) {
+          removeFile(newPath);
+          throw new Error('Could not save. The database did not allow this edit (update policy missing).');
+        }
+        if (newPath || editing.dropAtt) removeFile(oldPath);
+        clearComposer(); toast('Notice updated'); await refresh();
+      } catch (e) { err.textContent = friendly(e); }
+      finally { setBusy($('nBtn'), false, st.edit ? 'Save changes' : 'Post notice'); }
+      return;
     }
     var target = isAdmin() && $('nTarget').value === 'college' ? null : st.view;
     err.textContent = ''; setBusy($('nBtn'), true, 'Posting...');
@@ -673,8 +725,13 @@
       var det = el('details'); det.appendChild(el('summary', '', 'Full message'));
       det.appendChild(el('p', '', n.body)); b.appendChild(det);
     }
-    li.appendChild(b);
     var mine = canWrite() && (isAdmin() || n.class_id === st.profile.class_id);
+    if (mine) {
+      var eb = el('button', 'linkbtn', 'Edit'); eb.type = 'button';
+      eb.addEventListener('click', function () { startEdit(n); });
+      b.appendChild(eb);
+    }
+    li.appendChild(b);
     if (mine) {
       li.appendChild(delBtn('Delete ' + n.title, async function () {
         var r = await sb.from('notices').delete().eq('id', n.id);
