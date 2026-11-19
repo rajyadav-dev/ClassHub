@@ -726,18 +726,26 @@
       det.appendChild(el('p', '', n.body)); b.appendChild(det);
     }
     var mine = canWrite() && (isAdmin() || n.class_id === st.profile.class_id);
-    if (mine) {
-      var eb = el('button', 'linkbtn', 'Edit'); eb.type = 'button';
-      eb.addEventListener('click', function () { startEdit(n); });
-      b.appendChild(eb);
-    }
     li.appendChild(b);
     if (mine) {
-      li.appendChild(delBtn('Delete ' + n.title, async function () {
+      var acts = el('div', 'acts');
+      acts.style.cssText = 'display:flex;align-items:center;gap:2px';
+      var eb = el('button', 'del', ''); eb.type = 'button'; eb.setAttribute('aria-label', 'Edit ' + n.title);
+      eb.style.cssText = 'display:flex;align-items:center;padding:4px 8px';
+      var NS = 'http://www.w3.org/2000/svg', sv = document.createElementNS(NS, 'svg');
+      sv.setAttribute('viewBox', '0 0 24 24'); sv.setAttribute('width', '19'); sv.setAttribute('height', '19');
+      sv.setAttribute('fill', 'none'); sv.setAttribute('stroke', 'currentColor');
+      sv.setAttribute('stroke-width', '2'); sv.setAttribute('stroke-linecap', 'round'); sv.setAttribute('stroke-linejoin', 'round');
+      var pa = document.createElementNS(NS, 'path'); pa.setAttribute('d', 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z');
+      sv.appendChild(pa); eb.appendChild(sv);
+      eb.addEventListener('click', function () { startEdit(n); });
+      acts.appendChild(eb);
+      acts.appendChild(delBtn('Delete ' + n.title, async function () {
         var r = await sb.from('notices').delete().eq('id', n.id);
         if (r.error) { toast(friendly(r.error)); return; }
         removeFile(n.attachment_path); await refresh();
       }));
+      li.appendChild(acts);
     } else li.appendChild(el('span'));
     return li;
   }
