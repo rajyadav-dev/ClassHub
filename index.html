@@ -662,6 +662,14 @@ details.adv summary { cursor: pointer; color: var(--accent); font-weight: 600; f
           <button type="button" id="thDark" aria-pressed="false">Dark</button>
         </div>
       </div>
+      <div class="card" id="pushCard" hidden>
+        <h3>Notifications</h3>
+        <div class="seg" role="group" aria-label="Notifications">
+          <button type="button" id="pushOff" aria-pressed="true">Off</button>
+          <button type="button" id="pushOn" aria-pressed="false">On</button>
+        </div>
+        <p class="sub" id="pushMsg"></p>
+      </div>
       <button type="button" class="danger" id="logout"><svg class="ic"><use href="#i-logout"/></svg>Log out</button>
       <p class="foot" id="foot">ClassHub</p>
     </div>
