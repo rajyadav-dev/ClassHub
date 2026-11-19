@@ -322,6 +322,7 @@
   $('logout').addEventListener('click', async function () {
     try { if (st.channel) sb.removeChannel(st.channel); } catch (e) {}
     st.channel = null;
+    await pushOnLogout();
     try { await sb.auth.signOut(); } catch (e) {}
     st.notices = []; st.notes = []; st.people = []; st.att = null;
     clearAtt(); location.hash = '';
@@ -431,6 +432,7 @@
     var rl = $('pRole'); rl.textContent = isAdmin() ? 'Admin' : role() === 'editor' ? 'CR' : 'Student'; rl.className = 'chip r-' + role();
     $('pRoll').textContent = st.profile.roll;
     $('pClass').textContent = className(st.profile.class_id);
+    renderPush();
   }
 
   function buildTargets() {
@@ -590,6 +592,77 @@
     $('nBtn').textContent = 'Post notice'; $('nClear').textContent = 'Clear';
   }
   $('nClear').addEventListener('click', clearComposer);
+
+  /* ---------- push notifications ---------- */
+  var PUSH_KEY = (window.CLASSHUB_CONFIG || {}).VAPID_PUBLIC_KEY || '';
+  function pushSupported() {
+    return !!PUSH_KEY && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  }
+  function b64ToBytes(b) {
+    var s = atob((b + '='.repeat((4 - b.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+    var o = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) o[i] = s.charCodeAt(i); return o;
+  }
+  async function pushSave(sub) {
+    var k = sub.toJSON().keys || {};
+    var r = await sb.rpc('save_push_sub', { p_endpoint: sub.endpoint, p_p256dh: k.p256dh, p_auth: k.auth });
+    if (r.error) throw r.error;
+  }
+  async function pushGetSub() {
+    var reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.getSubscription();
+  }
+  async function pushEnable() {
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('push_blocked');
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(PUSH_KEY) });
+    await pushSave(sub);
+    lsSet('classHub.push', st.user.id);
+  }
+  async function pushDisable() {
+    var sub = await pushGetSub();
+    if (sub) { try { await sb.rpc('remove_push_sub', { p_endpoint: sub.endpoint }); } catch (e) {} try { await sub.unsubscribe(); } catch (e) {} }
+    lsSet('classHub.push', '');
+  }
+  function paintPush(on, msg) {
+    $('pushOn').setAttribute('aria-pressed', on ? 'true' : 'false');
+    $('pushOff').setAttribute('aria-pressed', on ? 'false' : 'true');
+    $('pushMsg').textContent = msg || '';
+  }
+  async function renderPush() {
+    if (!pushSupported()) { show('pushCard', false); return; }
+    show('pushCard', true);
+    var on = false;
+    try {
+      if (Notification.permission === 'granted' && lsGet('classHub.push') === st.user.id) {
+        var sub = await pushGetSub();
+        if (sub) { on = true; if (!st.pushSynced) { st.pushSynced = true; await pushSave(sub); } }
+      }
+    } catch (e) {}
+    paintPush(on, on ? 'You will get a notification for every new notice.' :
+      (Notification.permission === 'denied' ? 'Notifications are blocked for this app. Allow them in Chrome: Site settings, Notifications.' : 'Turn on to get a notification when a new notice is posted.'));
+  }
+  $('pushOn').addEventListener('click', async function () {
+    var b = $('pushOn'); b.disabled = true;
+    try { await pushEnable(); paintPush(true, 'You will get a notification for every new notice.'); }
+    catch (e) {
+      paintPush(false, (e && e.message === 'push_blocked') ? 'Notifications are blocked for this app. Allow them in Chrome: Site settings, Notifications.' : friendly(e));
+    } finally { b.disabled = false; }
+  });
+  $('pushOff').addEventListener('click', async function () {
+    var b = $('pushOff'); b.disabled = true;
+    try { await pushDisable(); paintPush(false, 'Notifications are off on this phone.'); } finally { b.disabled = false; }
+  });
+  /* on log out, this phone stops getting this person's notifications */
+  async function pushOnLogout() {
+    try {
+      if (!pushSupported()) return;
+      var sub = await pushGetSub();
+      if (sub) await sb.rpc('remove_push_sub', { p_endpoint: sub.endpoint });
+    } catch (e) {}
+    st.pushSynced = false;
+  }
 
   /* ---------- notices: edit ---------- */
   /* Edit mode: the New notice form is filled with the old notice and saving
