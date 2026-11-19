@@ -322,6 +322,7 @@
   $('logout').addEventListener('click', async function () {
     try { if (st.channel) sb.removeChannel(st.channel); } catch (e) {}
     st.channel = null;
+    bellClose();
     await pushOnLogout();
     try { await sb.auth.signOut(); } catch (e) {}
     st.notices = []; st.notes = []; st.people = []; st.att = null;
@@ -412,6 +413,7 @@
       box.appendChild(t);
     });
     var bb = $('bellBadge'); bb.textContent = String(soon.length); bb.hidden = !soon.length;
+    $('bellSoonTxt').textContent = soon.length ? soon.length + ' due in the next 3 days' : 'Nothing due in the next 3 days';
     var dl = $('dueList'); dl.textContent = '';
     if (!soon.length) {
       var ok = el('div', 'allclear'); ok.appendChild(icon('i-check')); ok.appendChild(el('span', '', 'Nothing due in the next 3 days.')); dl.appendChild(ok);
@@ -421,7 +423,18 @@
     if (!latest.length) ll.appendChild(el('p', 'empty', 'No notices yet.'));
     latest.forEach(function (n) { ll.appendChild(drow(n, '', false)); });
   }
-  $('bell').addEventListener('click', function () {
+  /* bell: opens a small panel with the notifications switch and a shortcut to "Coming up soon" */
+  function bellClose() { $('bellPop').hidden = true; $('bell').setAttribute('aria-expanded', 'false'); }
+  $('bell').addEventListener('click', function (ev) {
+    ev.stopPropagation();
+    var pop = $('bellPop'); pop.hidden = !pop.hidden;
+    $('bell').setAttribute('aria-expanded', pop.hidden ? 'false' : 'true');
+  });
+  $('bellPop').addEventListener('click', function (ev) { ev.stopPropagation(); });
+  document.addEventListener('click', bellClose);
+  document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') bellClose(); });
+  $('bellSoon').addEventListener('click', function () {
+    bellClose();
     location.hash = '#home';
     setTimeout(function () { var w = $('dueWrap'); if (w && w.scrollIntoView) w.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
   });
@@ -626,8 +639,7 @@
     lsSet('classHub.push', '');
   }
   function paintPush(on, msg) {
-    $('pushOn').setAttribute('aria-pressed', on ? 'true' : 'false');
-    $('pushOff').setAttribute('aria-pressed', on ? 'false' : 'true');
+    $('pushSw').setAttribute('aria-checked', on ? 'true' : 'false');
     $('pushMsg').textContent = msg || '';
   }
   async function renderPush() {
@@ -640,19 +652,18 @@
         if (sub) { on = true; if (!st.pushSynced) { st.pushSynced = true; await pushSave(sub); } }
       }
     } catch (e) {}
-    paintPush(on, on ? 'You will get a notification for every new notice.' :
-      (Notification.permission === 'denied' ? 'Notifications are blocked for this app. Allow them in Chrome: Site settings, Notifications.' : 'Turn on to get a notification when a new notice is posted.'));
+    paintPush(on, on ? 'On for new notices' :
+      (Notification.permission === 'denied' ? 'Blocked. Allow it in Chrome site settings.' : 'Get alerts for new notices'));
   }
-  $('pushOn').addEventListener('click', async function () {
-    var b = $('pushOn'); b.disabled = true;
-    try { await pushEnable(); paintPush(true, 'You will get a notification for every new notice.'); }
-    catch (e) {
-      paintPush(false, (e && e.message === 'push_blocked') ? 'Notifications are blocked for this app. Allow them in Chrome: Site settings, Notifications.' : friendly(e));
+  $('pushSw').addEventListener('click', async function () {
+    var b = $('pushSw'); b.disabled = true;
+    var on = b.getAttribute('aria-checked') === 'true';
+    try {
+      if (on) { await pushDisable(); paintPush(false, 'Off on this phone'); }
+      else { await pushEnable(); paintPush(true, 'On for new notices'); }
+    } catch (e) {
+      paintPush(false, (e && e.message === 'push_blocked') ? 'Blocked. Allow it in Chrome site settings.' : friendly(e));
     } finally { b.disabled = false; }
-  });
-  $('pushOff').addEventListener('click', async function () {
-    var b = $('pushOff'); b.disabled = true;
-    try { await pushDisable(); paintPush(false, 'Notifications are off on this phone.'); } finally { b.disabled = false; }
   });
   /* on log out, this phone stops getting this person's notifications */
   async function pushOnLogout() {
