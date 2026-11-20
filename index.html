@@ -103,7 +103,7 @@ textarea { min-height: 110px; resize: vertical; }
 .seg button { border: 0; background: none; padding: 9px; border-radius: 10px; font-weight: 600; color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 6px rgba(15, 23, 42, .12); }
 
-.prow { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; }
+.nrow { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; }
 .pico { width: 38px; height: 38px; border-radius: 12px; background: var(--accent-soft, #E8F0FE); color: var(--accent); display: grid; place-items: center; flex: none; }
 .ptxt { flex: 1; min-width: 0; }
 .pt { font-weight: 600; font-size: 15px; }
@@ -116,7 +116,8 @@ textarea { min-height: 110px; resize: vertical; }
 .bpop { position: absolute; top: calc(100% + 6px); right: 12px; width: min(340px, calc(100% - 24px)); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 12px 32px rgba(15, 23, 42, .18); overflow: hidden; }
 .bpop .brow { width: 100%; background: none; border: 0; text-align: left; color: inherit; font: inherit; }
 .bpop .brow .pt, .bpop .brow .sub { display: block; }
-.bpop .prow + .prow { border-top: 1px solid var(--line); }.seg.three { grid-template-columns: repeat(3, 1fr); }
+.bpop .nrow + .nrow { border-top: 1px solid var(--line); }
+.seg.three { grid-template-columns: repeat(3, 1fr); }
 .pin { letter-spacing: .3em; }
 .iconbtn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: grid; place-items: center; box-shadow: var(--shadow); }
 
@@ -482,7 +483,7 @@ details.adv summary { cursor: pointer; color: var(--accent); font-weight: 600; f
       <button type="button" class="bell" id="bell" aria-label="Notifications and coming up soon" aria-haspopup="true" aria-expanded="false"><svg class="ic"><use href="#i-bell"/></svg><span class="badge" id="bellBadge" hidden>0</span></button>
     </div>
       <div class="bpop" id="bellPop" hidden>
-        <div class="prow" id="pushCard" hidden>
+        <div class="nrow" id="pushCard" hidden>
           <span class="pico"><svg class="ic"><use href="#i-bell"/></svg></span>
           <div class="ptxt">
             <p class="pt">Notifications</p>
@@ -490,7 +491,7 @@ details.adv summary { cursor: pointer; color: var(--accent); font-weight: 600; f
           </div>
           <button type="button" class="sw" id="pushSw" role="switch" aria-checked="false" aria-label="Notifications"><span></span></button>
         </div>
-        <button type="button" class="prow brow" id="bellSoon">
+        <button type="button" class="nrow brow" id="bellSoon">
           <span class="pico"><svg class="ic"><use href="#i-clock"/></svg></span>
           <span class="ptxt"><span class="pt">Coming up soon</span><span class="sub" id="bellSoonTxt"></span></span>
         </button>
